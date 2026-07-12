@@ -7,6 +7,7 @@ import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.media.AudioManager
 import org.json.JSONArray
 
 class NotifyListenerService : NotificationListenerService() {
@@ -51,29 +52,53 @@ class NotifyListenerService : NotificationListenerService() {
     private fun bypassDoNotDisturb() {
         try {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             
-            // 1. Usamos el método explícito para leer el filtro actual
+            // 1. Guardar estados actuales del sistema
             val currentFilter = notificationManager.currentInterruptionFilter
+            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
 
-            // Si el móvil ya está en modo permitir todo, no hacemos nada
+            // [PROVISIONAL]: Leemos de SharedPreferences qué modo quiere el usuario.
+            // Para las pruebas, asumimos "clasico" (true). Si fuera silencioso, sería false.
+            val sharedPref = getSharedPreferences("NotifyAppPrefs", Context.MODE_PRIVATE)
+            val isClasicoMode = sharedPref.getBoolean("indulto_mode_sound", true) 
+
+            // Si ya está el filtro en permitir todo, no duplicamos lógica
             if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) return
 
-            // 2. Usamos el método setInterruptionFilter explícitamente para APAGAR el No Molestar
+            // 2. Gestionar el volumen según el modo elegido
+            if (isClasicoMode) {
+                // MODO CLÁSICO: Subimos el volumen de notificaciones al máximo
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxVolume, 0)
+                Log.d("NOTIFY_BRAIN", "Modo Clásico: Volumen al máximo ($maxVolume).")
+            } else {
+                // MODO SILENCIOSO: Forzamos volumen a 0 para que solo dependa de la vibración nativa
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
+                Log.d("NOTIFY_BRAIN", "Modo Silencioso: Volumen a 0 (Solo vibración).")
+            }
+
+            // 3. Quitar el No Molestar
             notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
             Log.d("NOTIFY_BRAIN", "No Molestar DESACTIVADO temporalmente.")
 
-            // 3. Esperamos 3 segundos y lo volvemos a ACTIVAR usando setInterruptionFilter
+            // 4. Temporizador de 3 segundos para restaurar TODO a la normalidad
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
+                    // Restauramos el filtro No Molestar
                     notificationManager.setInterruptionFilter(currentFilter)
-                    Log.d("NOTIFY_BRAIN", "No Molestar RESTAURADO a su estado original.")
+                    
+                    // Restauramos el volumen exactamente a como lo tenía el usuario
+                    audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, currentVolume, 0)
+                    
+                    Log.d("NOTIFY_BRAIN", "Sistema RESTAURADO: No Molestar y volumen original ($currentVolume) devueltos.")
                 } catch (e: Exception) {
-                    Log.e("NOTIFY_BRAIN", "Error al restaurar No Molestar: ${e.message}")
+                    Log.e("NOTIFY_BRAIN", "Error al restaurar el sistema: ${e.message}")
                 }
             }, 3000)
 
         } catch (e: Exception) {
-            Log.e("NOTIFY_BRAIN", "Error en el bypass de No Molestar: ${e.message}")
+            Log.e("NOTIFY_BRAIN", "Error en el bypass avanzado: ${e.message}")
         }
     }
 }
