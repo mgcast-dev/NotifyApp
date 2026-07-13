@@ -70,33 +70,19 @@ class PermissionsModule(private val reactContext: ReactApplicationContext) : Rea
         }
     }
 
-    // 4. Guarda el estado del "Modo Indulto" (Activado/Desactivado)
+    // 4. NUEVO MÉTODO UNIFICADO: Guarda el estado del "Modo Indulto" y el tipo de aviso (Clásico vs Silencioso)
     @ReactMethod
-    fun syncDndMode(isEnabled: Boolean, promise: Promise) {
+    fun syncDndSettings(isEnabled: Boolean, isSilent: Boolean, promise: Promise) {
         try {
             val sharedPref = reactContext.getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
             with (sharedPref.edit()) {
                 putBoolean("is_dnd_active_native", isEnabled)
+                putBoolean("indulto_mode_sound", !isSilent) // Si es silencioso (true), el sonido clásico es false
                 apply()
             }
             promise.resolve(true)
         } catch (e: Exception) {
-            promise.reject("SYNC_ERROR", "Error guardando modo indulto: ${e.message}")
-        }
-    }
-
-    // 5. Guarda la URI del audio seleccionado
-    @ReactMethod
-    fun syncAudioUri(uri: String, promise: Promise) {
-        try {
-            val sharedPref = reactContext.getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
-            with (sharedPref.edit()) {
-                putString("selected_audio_uri_native", uri)
-                apply()
-            }
-            promise.resolve(true)
-        } catch (e: Exception) {
-            promise.reject("SYNC_ERROR", "Error guardando URI de audio: ${e.message}")
+            promise.reject("SYNC_ERROR", "Error guardando ajustes de indulto: ${e.message}")
         }
     }
 }

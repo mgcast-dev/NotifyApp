@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Switch, TouchableOpacity, FlatList, Alert, ActivityIndicator, AppState, Modal, TextInput } from 'react-native';
+import { StyleSheet, Text, View, Switch, TouchableOpacity, FlatList, Alert, AppState, Modal, TextInput } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeModules } from 'react-native';
-import Video from 'react-native-video'; // Importante: Haber instalado npm install react-native-video
 
-const { AudioPickerModule, PermissionsModule } = NativeModules;
+const { PermissionsModule } = NativeModules;
 
 interface Contact {
   id: string;
@@ -13,14 +12,10 @@ interface Contact {
 
 const HomeScreen = () => {
   const [isDndEnabled, setIsDndEnabled] = useState(false);
+  const [isSilentMode, setIsSilentMode] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [selectedAudio, setSelectedAudio] = useState<{name: string, uri: string} | null>(null);
-  
-  // Estado para controlar si el audio está sonando
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
-  //Estado para controlar las notificaciones
+  // Estado para controlar las notificaciones
   const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -28,7 +23,6 @@ const HomeScreen = () => {
 
   const checkPermission = async () => {
     try {
-      // Llamamos al método que creamos en PermissionsModule.kt
       const isGranted = await PermissionsModule.checkNotificationPermission();
       setHasNotificationPermission(isGranted);
     } catch (error) {
@@ -36,7 +30,6 @@ const HomeScreen = () => {
     }
   };
 
-  // 2. Función para abrir la pantalla de ajustes del sistema
   const requestPermission = async () => {
     try {
       await PermissionsModule.openNotificationSettings();
@@ -44,33 +37,29 @@ const HomeScreen = () => {
       Alert.alert("Error", "No se pudo abrir la configuración de notificaciones.");
     }
   };
+
   useEffect(() => {
-    // 1. Función para cargar contactos y audio desde AsyncStorage
     const loadInitialData = async () => {
       try {
         const savedContacts = await AsyncStorage.getItem('@pardoned_contacts');
         if (savedContacts) setContacts(JSON.parse(savedContacts));
 
-        const savedAudio = await AsyncStorage.getItem('@selected_audio');
-        if (savedAudio) setSelectedAudio(JSON.parse(savedAudio));
+        const savedSilentMode = await AsyncStorage.getItem('@silent_mode');
+        if (savedSilentMode) setIsSilentMode(JSON.parse(savedSilentMode));
       } catch (e) {
         console.error("Error al cargar datos iniciales", e);
       }
     };
 
-    // 2. Ejecución inicial
     loadInitialData();
-    checkPermission(); // Ejecuta la comprobación del permiso al abrir la app
+    checkPermission();
 
-    // 3. Escuchar cuando el usuario vuelve de los Ajustes de Android
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      // Si el estado de la app pasa de segundo plano (ajustes) a 'active' (primer plano)
       if (nextAppState === 'active') {
-        checkPermission(); // Re-comprobamos el permiso automáticamente
+        checkPermission();
       }
     });
 
-    // 4. Limpieza del listener al desmontar el componente
     return () => {
       subscription.remove();
     };
@@ -90,7 +79,6 @@ const HomeScreen = () => {
     const newList = [...contacts, newContact];
     setContacts(newList);
     
-    // Sincronización
     const jsonList = JSON.stringify(newList);
     await AsyncStorage.setItem('@pardoned_contacts', jsonList);
     
@@ -100,78 +88,68 @@ const HomeScreen = () => {
       console.error(e);
     }
 
-    // Limpiar y cerrar
     setNewContactName('');
     setIsModalVisible(false);
   };
 
-  const pickAudio = async () => {
-    console.log("1. Botón pulsado");
-    try {
-      const uri = await AudioPickerModule.pickAudio();
-      
-      // Limpiamos el nombre del archivo de la URI
-      const fileName = uri.split('/').pop() || "Audio seleccionado";
-      const audioData = { name: fileName, uri: uri };
-      
-      setSelectedAudio(audioData);
-      await AsyncStorage.setItem('@selected_audio', JSON.stringify(audioData));
-
-      await PermissionsModule.syncAudioUri(uri);
-      
-      Alert.alert("¡Conseguido!", "Tono seleccionado correctamente.");
-    } catch (error) {
-      Alert.alert("ERROR", String(error));
-    }
-  };
-
-  // Función para activar/desactivar el sonido de prueba
-  const togglePlay = () => {
-    if (!selectedAudio) {
-      Alert.alert("Aviso", "Primero selecciona un tono");
-      return;
-    }
-    
-    if (isPlaying) {
-      // Si está sonando, lo apagamos
-      setIsPlaying(false);
-      setIsLoadingAudio(false);
-    } else {
-      // Si no está sonando, iniciamos la carga y la reproducción
-      setIsLoadingAudio(true);
-      setIsPlaying(true);
-    }
-  };
-
   const toggleDndMode = async (newValue: boolean) => {
     setIsDndEnabled(newValue);
-    
-    // Lo enviamos al cerebro nativo
     try {
-      await PermissionsModule.syncDndMode(newValue);
-      console.log("Modo indulto sincronizado con Kotlin:", newValue);
+      await PermissionsModule.syncDndSettings(newValue, isSilentMode);
+      console.log("Modo indulto sincronizado con Kotlin. Activo:", newValue, "Silencioso:", isSilentMode);
     } catch (e) {
       console.error("Error sincronizando modo indulto", e);
     }
   };
+
+  const toggleSilentMode = async (newValue: boolean) => {
+    setIsSilentMode(newValue);
+    try {
+      await AsyncStorage.setItem('@silent_mode', JSON.stringify(newValue));
+      await PermissionsModule.syncDndSettings(isDndEnabled, newValue);
+      console.log("Modo Silencioso sincronizado con Kotlin:", newValue);
+    } catch (e) {
+      console.error("Error sincronizando modo silencioso", e);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>NOTIFY APP</Text>
 
+      {/* TARJETA DE CONFIGURACIÓN PRINCIPAL */}
       <View style={styles.card}>
-        <Text style={styles.label}>Modo Indulto</Text>
-        <Switch 
-          value={isDndEnabled} 
-          onValueChange={toggleDndMode}
-          trackColor={{ false: "#333", true: "#0f0" }}
-          thumbColor={isDndEnabled ? "#fff" : "#f4f3f4"}
-        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.label}>Modo Indulto</Text>
+          <Text style={styles.subLabel}>Permitir alertas de la lista</Text>
+          <Switch 
+            value={isDndEnabled} 
+            onValueChange={toggleDndMode}
+            trackColor={{ false: "#333", true: "#0f0" }}
+            thumbColor={isDndEnabled ? "#fff" : "#f4f3f4"}
+            style={{ alignSelf: 'flex-start', marginTop: 8 }}
+          />
+        </View>
+
+        <View style={{ alignItems: 'flex-end', justifyContent: 'center', paddingLeft: 10 }}>
+          <Text style={[styles.label, { color: isDndEnabled ? '#fff' : '#444' }]}>Silencioso</Text>
+          <Text style={styles.subLabel}>Solo vibración</Text>
+          <Switch 
+            value={isSilentMode} 
+            onValueChange={toggleSilentMode}
+            disabled={!isDndEnabled}
+            trackColor={{ false: "#333", true: "#f0f" }}
+            thumbColor={isSilentMode ? "#fff" : "#f4f3f4"}
+            style={{ marginTop: 8 }}
+          />
+        </View>
       </View>
 
+      {/* TARJETA DE PERMISOS DEL SISTEMA */}
       <View style={styles.card}>
         <View style={{ flex: 1, marginRight: 10 }}>
           <Text style={styles.label}>Acceso a Notificaciones</Text>
-          <Text style={{ color: '#aaa', fontSize: 12, marginTop: 4 }}>
+          <Text style={styles.subLabel}>
             {hasNotificationPermission 
               ? "Servicio configurado correctamente." 
               : "Necesario para detectar mensajes entrantes."}
@@ -184,7 +162,7 @@ const HomeScreen = () => {
             { backgroundColor: hasNotificationPermission ? '#222' : '#f00' }
           ]} 
           onPress={requestPermission}
-          disabled={hasNotificationPermission} // Si ya lo tiene, no hace falta pulsar más
+          disabled={hasNotificationPermission}
         >
           <Text style={{ 
             color: hasNotificationPermission ? '#0f0' : '#fff', 
@@ -195,59 +173,8 @@ const HomeScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
-      <View style={{ marginBottom: 20 }}>
-        <TouchableOpacity style={styles.button} onPress={pickAudio}>
-          <Text style={styles.buttonText}>SELECCIONAR TONO</Text>
-        </TouchableOpacity>
-        
-       {selectedAudio && (
-          <View style={styles.audioInfoContainer}>
-            <Text style={styles.audioText} numberOfLines={1}>
-              Tono: {selectedAudio.name}
-            </Text>
-            
-            {/* BOTÓN CON FEEDBACK DE CARGA */}
-            <TouchableOpacity 
-              style={[styles.testButton, { backgroundColor: isPlaying ? '#f00' : '#444' }]} 
-              onPress={togglePlay}
-              disabled={isLoadingAudio} // Deshabilita el botón mientras carga
-            >
-              {isLoadingAudio ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>{isPlaying ? "STOP" : "PROBAR"}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
 
-      {/* REPRODUCTOR OCULTO MEJORADO */}
-      {selectedAudio && isPlaying && (
-        <Video
-          source={{ uri: selectedAudio.uri }}
-          playInBackground={true}
-          playWhenInactive={true}
-          volume={1.0} // Volumen al máximo de la app
-          ignoreSilentSwitch="ignore" // Intenta saltarse el modo silencio
-          mixWithOthers="duck" // Baja el volumen de Spotify/YouTube temporalmente
-          
-          // EVENTO DE CARGA: Apaga el spinner cuando el audio está listo para sonar
-          onLoad={() => setIsLoadingAudio(false)} 
-          
-          onEnd={() => {
-            setIsPlaying(false);
-            setIsLoadingAudio(false);
-          }}
-          onError={(e) => {
-            console.error("Error Video:", e);
-            setIsPlaying(false);
-            setIsLoadingAudio(false);
-            Alert.alert("Error", "No se pudo reproducir este audio.");
-          }}
-        />
-      )}
-
+      {/* SECCIÓN DE CONTACTOS INDULTADOS */}
       <View style={{ flex: 1, marginTop: 10 }}>
         <View style={styles.listHeader}>
           <Text style={styles.label}>Contactos Indultados</Text>
@@ -266,6 +193,8 @@ const HomeScreen = () => {
           )}
         />
       </View>
+
+      {/* MODAL PARA AÑADIR CONTACTO */}
       <Modal
         visible={isModalVisible}
         transparent={true}
@@ -285,14 +214,14 @@ const HomeScreen = () => {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
               <TouchableOpacity 
                 onPress={() => setIsModalVisible(false)}
-                style={[styles.testButton, { backgroundColor: '#444' }]}
+                style={[styles.cancelButton, { backgroundColor: '#444' }]}
               >
                 <Text style={styles.buttonText}>CANCELAR</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
                 onPress={addNewContact}
-                style={[styles.testButton, { backgroundColor: '#0f0' }]}
+                style={[styles.saveButton, { backgroundColor: '#0f0' }]}
               >
                 <Text style={styles.buttonText}>GUARDAR</Text>
               </TouchableOpacity>
@@ -307,23 +236,14 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000', padding: 20 },
   title: { color: '#0f0', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginVertical: 20 },
-  card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#111', padding: 20, borderRadius: 10, marginBottom: 15 },
+  card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch', backgroundColor: '#111', padding: 20, borderRadius: 10, marginBottom: 15 },
   label: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  button: { backgroundColor: '#0f0', padding: 15, borderRadius: 8, alignItems: 'center' },
+  subLabel: { color: '#aaa', fontSize: 12, marginTop: 4 },
   buttonText: { color: '#000', fontWeight: 'bold' },
-  audioInfoContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    marginTop: 10,
-    paddingHorizontal: 10
-  },
-  audioText: { color: '#aaa', flex: 1 },
-  testButton: { padding: 8, borderRadius: 5, marginLeft: 10, minWidth: 80, alignItems: 'center' },
-  listHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  addText: { color: '#0f0', fontWeight: 'bold' },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, paddingHorizontal: 5 },
+  addText: { color: '#0f0', fontWeight: 'bold', fontSize: 15 },
   contactItem: { backgroundColor: '#1a1a1a', padding: 15, borderRadius: 5, marginBottom: 8, borderLeftWidth: 4, borderLeftColor: '#0f0' },
-  contactName: { color: '#fff' },
+  contactName: { color: '#fff', fontSize: 15 },
   permissionButton: {
     paddingVertical: 8,
     paddingHorizontal: 15,
@@ -355,6 +275,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#0f0',
   },
+  cancelButton: { padding: 10, borderRadius: 5, minWidth: 100, alignItems: 'center' },
+  saveButton: { padding: 10, borderRadius: 5, minWidth: 100, alignItems: 'center' }
 });
 
 export default HomeScreen;

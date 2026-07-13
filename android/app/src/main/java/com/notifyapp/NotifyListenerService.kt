@@ -9,6 +9,9 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import android.media.AudioManager
 import org.json.JSONArray
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.os.Build
 
 class NotifyListenerService : NotificationListenerService() {
 
@@ -58,24 +61,36 @@ class NotifyListenerService : NotificationListenerService() {
             val currentFilter = notificationManager.currentInterruptionFilter
             val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
 
-            // [PROVISIONAL]: Leemos de SharedPreferences qué modo quiere el usuario.
-            // Para las pruebas, asumimos "clasico" (true). Si fuera silencioso, sería false.
-            val sharedPref = getSharedPreferences("NotifyAppPrefs", Context.MODE_PRIVATE)
+            // Leemos del archivo de configuración unificado
+            val sharedPref = getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
             val isClasicoMode = sharedPref.getBoolean("indulto_mode_sound", true) 
 
             // Si ya está el filtro en permitir todo, no duplicamos lógica
             if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) return
 
-            // 2. Gestionar el volumen según el modo elegido
+            // 2. Gestionar el volumen y la vibración según el modo elegido
             if (isClasicoMode) {
                 // MODO CLÁSICO: Subimos el volumen de notificaciones al máximo
                 val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
                 audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxVolume, 0)
                 Log.d("NOTIFY_BRAIN", "Modo Clásico: Volumen al máximo ($maxVolume).")
             } else {
-                // MODO SILENCIOSO: Forzamos volumen a 0 para que solo dependa de la vibración nativa
+                // MODO SILENCIOSO: Forzamos volumen a 0 e inyectamos vibración manual
                 audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
-                Log.d("NOTIFY_BRAIN", "Modo Silencioso: Volumen a 0 (Solo vibración).")
+                Log.d("NOTIFY_BRAIN", "Modo Silencioso: Volumen a 0. Forzando vibración manual.")
+                
+                // Disparamos la vibración del hardware
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (vibrator.hasVibrator()) {
+                    // Patrón: Espera 0ms, vibra 500ms, espera 250ms, vibra 500ms
+                    val pattern = longArrayOf(0, 500, 250, 500)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1)) // -1 significa que no se repite en bucle
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(pattern, -1)
+                    }
+                }
             }
 
             // 3. Quitar el No Molestar
