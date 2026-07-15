@@ -1,17 +1,19 @@
 package com.notifyapp
 
+import android.app.NotificationManager
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
-import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.media.AudioManager
 import org.json.JSONArray
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.os.Build
 
 class NotifyListenerService : NotificationListenerService() {
-
-    private var mediaPlayer: MediaPlayer? = null
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
@@ -26,7 +28,7 @@ class NotifyListenerService : NotificationListenerService() {
         val notification = sbn.notification
         val extras = notification.extras
         
-        // 2. Extraer el nombre del contacto (Funciona para WhatsApp y Telegram)
+        // 2. Extraer el nombre del contacto
         val contactName = extras?.getString("android.title") ?: return
         
         // 3. Leer y procesar la lista de contactos indultados (JSON)
@@ -37,51 +39,81 @@ class NotifyListenerService : NotificationListenerService() {
         for (i in 0 until jsonArray.length()) {
             val contact = jsonArray.getJSONObject(i)
             val name = contact.getString("name")
-            // Comparamos nombres (puedes ajustar si quieres que sea exacto o contenga el texto)
             if (contactName.contains(name, ignoreCase = true)) {
                 isPardoned = true
                 break
             }
         }
 
-        // 4. Si el contacto está indultado, ¡Hacemos ruido!
+        // 4. Si el contacto está indultado, desactivamos el DND temporalmente
         if (isPardoned) {
-            Log.d("NOTIFY_BRAIN", "¡CONTACTO INDULTADO DETECTADO: $contactName!")
-            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
-            vibrator.vibrate(500) // Vibrate for 500ms
-            playPardonedSound()
+            Log.d("NOTIFY_BRAIN", "¡CONTACTO INDULTADO DETECTADO: $contactName! Aplicando bypass de No Molestar.")
+            bypassDoNotDisturb()
         }
     }
 
-    private fun playPardonedSound() {
+    private fun bypassDoNotDisturb() {
         try {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            
+            // 1. Guardar estados actuales del sistema
+            val currentFilter = notificationManager.currentInterruptionFilter
+            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_NOTIFICATION)
+
+            // Leemos del archivo de configuración unificado
             val sharedPref = getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
-            // Leemos la URI que guardamos desde React Native
-            val uriString = sharedPref.getString("selected_audio_uri_native", null) ?: return
-            val audioUri = Uri.parse(uriString)
+            val isClasicoMode = sharedPref.getBoolean("indulto_mode_sound", true) 
 
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
+            // Si ya está el filtro en permitir todo, no duplicamos lógica
+            if (currentFilter == NotificationManager.INTERRUPTION_FILTER_ALL) return
 
-            mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_ALARM) // Para que suene incluso en silencio/DND
-                        .build()
-                )
-                setDataSource(applicationContext, audioUri)
-                prepare()
-                start()
+            // 2. Gestionar el volumen y la vibración según el modo elegido
+            if (isClasicoMode) {
+                // MODO CLÁSICO: Subimos el volumen de notificaciones al máximo
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_NOTIFICATION)
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxVolume, 0)
+                Log.d("NOTIFY_BRAIN", "Modo Clásico: Volumen al máximo ($maxVolume).")
+            } else {
+                // MODO SILENCIOSO: Forzamos volumen a 0 e inyectamos vibración manual
+                audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0)
+                Log.d("NOTIFY_BRAIN", "Modo Silencioso: Volumen a 0. Forzando vibración manual.")
+                
+                // Disparamos la vibración del hardware
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                if (vibrator.hasVibrator()) {
+                    // Patrón: Espera 0ms, vibra 500ms, espera 250ms, vibra 500ms
+                    val pattern = longArrayOf(0, 500, 250, 500)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1)) // -1 significa que no se repite en bucle
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(pattern, -1)
+                    }
+                }
             }
-            Log.d("NOTIFY_BRAIN", "Reproduciendo audio desde URI: $uriString")
-        } catch (e: Exception) {
-            Log.e("NOTIFY_BRAIN", "Error al reproducir audio: ${e.message}")
-        }
-    }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        mediaPlayer?.release()
+            // 3. Quitar el No Molestar
+            notificationManager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_ALL)
+            Log.d("NOTIFY_BRAIN", "No Molestar DESACTIVADO temporalmente.")
+
+            // 4. Temporizador de 3 segundos para restaurar TODO a la normalidad
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    // Restauramos el filtro No Molestar
+                    notificationManager.setInterruptionFilter(currentFilter)
+                    
+                    // Restauramos el volumen exactamente a como lo tenía el usuario
+                    audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, currentVolume, 0)
+                    
+                    Log.d("NOTIFY_BRAIN", "Sistema RESTAURADO: No Molestar y volumen original ($currentVolume) devueltos.")
+                } catch (e: Exception) {
+                    Log.e("NOTIFY_BRAIN", "Error al restaurar el sistema: ${e.message}")
+                }
+            }, 3000)
+
+        } catch (e: Exception) {
+            Log.e("NOTIFY_BRAIN", "Error en el bypass avanzado: ${e.message}")
+        }
     }
 }
