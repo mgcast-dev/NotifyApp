@@ -21,3 +21,13 @@
 -keepclassmembers class * {
     @com.facebook.react.bridge.ReactMethod *;
 }
+
+# --- REGLAS OBLIGATORIAS PARA REACT NATIVE Y HERMES ---
+-keep class com.facebook.soloader.** { *; }
+-keep class com.facebook.react.** { *; }
+-keep class com.facebook.hermes.** { *; }
+-keep class com.facebook.jni.** { *; }
+-keepclassmembers class * {
+    @com.facebook.proguard.annotations.DoNotStrip <fields>;
+    @com.facebook.proguard.annotations.DoNotStrip <methods>;
+}

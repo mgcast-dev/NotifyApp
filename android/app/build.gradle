@@ -52,7 +52,7 @@ react {
 
     /* Autolinking */
     autolinkLibrariesWithApp()
-    hermesEnabled = false
+    hermesEnabled = true
 }
 
 /**
