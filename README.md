@@ -36,13 +36,13 @@ Asegúrate de tener instalado tu entorno de desarrollo para Android en Windows:
    ```bash
    npx react-native start
 4. **Ejecutar la app en modo debug**
-    ```bash
+   ```bash
    npx react-native run-android
 5. **Ejecutar la app en modo release**
-    ```bash
+   ```bash
    npx react-native run-android --mode=release
 Opcional. **Eliminar archivos temporales generados por el build de Release**
-    ```bash
+   ```bash
    Remove-Item -Recurse -Force android/app/build -ErrorAction SilentlyContinue
    Remove-Item -Recurse -Force android/.gradle -ErrorAction SilentlyContinue
    Remove-Item -Recurse -Force android/app/.cxx -ErrorAction SilentlyContinue
