@@ -27,4 +27,36 @@ Asegúrate de haber subido todo tu código probado a la rama principal:
 git add .
 git commit -m "feat: nueva funcionalidad lista para release"
 git push origin main
+```
+### 2. Crear y enviar la etiqueta (*Tag*)
 
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+⏱️ Nota: Una vez enviado el tag, la pestaña Actions en tu repositorio de GitHub comenzará a compilar el APK y el AAB automáticamente (tarda entre 5 y 10 minutos).
+
+🔄 Recompilar o sobrescribir una versión existente
+Si la compilación en GitHub Actions falló o necesitas reemplazar una versión (v1.0.0) con correcciones sin cambiar el número de versión:
+### 1. Eliminar la etiqueta actual (Local y Remoto)
+```bash
+git tag -d v1.0.0
+git push origin --delete v1.0.0
+```
+### 2. Volver a crear y enviar la etiqueta
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+📦 Dónde encontrar los archivos generados:
+Ve a la página principal de tu repositorio en GitHub.
+
+En la barra lateral derecha, haz clic en Releases.
+
+Selecciona la versión creada (ej. v1.0.0).
+
+En la sección Assets, encontrarás para descargar:
+
+    📱 app-release.apk (Instalación directa en teléfono)
+
+    📦 app-release.aab (Para subida a Google Play Console)
