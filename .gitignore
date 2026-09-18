@@ -73,3 +73,10 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+
+# -----------------------------------------------------------------------------
+# NotifyApp - Seguridad de Firma Digital (Producción)
+# -----------------------------------------------------------------------------
+*.keystore
+android/app/my-upload-key.keystore
