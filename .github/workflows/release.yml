@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# Permisos requeridos para crear la Release y subir el APK
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
