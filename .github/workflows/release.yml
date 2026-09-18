@@ -21,10 +21,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
@@ -33,7 +33,7 @@ jobs:
         run: cd android && ./gradlew assembleRelease
 
       - name: Upload APK to Release Assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/release/app-release.apk
         env:
