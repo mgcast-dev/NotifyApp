@@ -15,42 +15,56 @@ import android.os.Build
 
 class NotifyListenerService : NotificationListenerService() {
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        super.onNotificationPosted(sbn)
+override fun onNotificationPosted(sbn: StatusBarNotification?) {
+    super.onNotificationPosted(sbn)
 
-        val sharedPref = getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
-        
-        // 1. Verificar si el Modo Indulto está activo en la App
-        val isDndActive = sharedPref.getBoolean("is_dnd_active_native", false)
-        if (!isDndActive) return
+    val packageName = sbn?.packageName
+    Log.d("NOTIFY_BRAIN", "1. Notificación detectada del paquete: $packageName")
 
-        val packageName = sbn?.packageName ?: return
-        val notification = sbn.notification
-        val extras = notification.extras
-        
-        // 2. Extraer el nombre del contacto
-        val contactName = extras?.getString("android.title") ?: return
-        
-        // 3. Leer y procesar la lista de contactos indultados (JSON)
-        val contactsJson = sharedPref.getString("pardoned_contacts_native", "[]")
-        val jsonArray = JSONArray(contactsJson)
-        var isPardoned = false
+    val sharedPref = getSharedPreferences("NotifyPrefs", Context.MODE_PRIVATE)
+    
+    // 1. Verificar si el Modo Indulto está activo en la App
+    val isDndActive = sharedPref.getBoolean("is_dnd_active_native", false)
+    Log.d("NOTIFY_BRAIN", "2. Estado de isDndActive: $isDndActive")
+    if (!isDndActive) return
 
-        for (i in 0 until jsonArray.length()) {
-            val contact = jsonArray.getJSONObject(i)
-            val name = contact.getString("name")
-            if (contactName.contains(name, ignoreCase = true)) {
-                isPardoned = true
-                break
-            }
-        }
+    if (packageName == null) {
+        Log.d("NOTIFY_BRAIN", "3. Abortado: packageName es nulo")
+        return
+    }
+    
+    val notification = sbn.notification
+    val extras = notification.extras
+    
+    // 2. Extraer el nombre del contacto
+    val contactName = extras?.getString("android.title")
+    Log.d("NOTIFY_BRAIN", "4. Contacto extraído (android.title): $contactName")
+    if (contactName == null) return
+    
+    // 3. Leer y procesar la lista de contactos indultados (JSON)
+    val contactsJson = sharedPref.getString("pardoned_contacts_native", "[]")
+    Log.d("NOTIFY_BRAIN", "5. JSON de contactos indultados: $contactsJson")
+    
+    val jsonArray = JSONArray(contactsJson)
+    var isPardoned = false
 
-        // 4. Si el contacto está indultado, desactivamos el DND temporalmente
-        if (isPardoned) {
-            Log.d("NOTIFY_BRAIN", "¡CONTACTO INDULTADO DETECTADO: $contactName! Aplicando bypass de No Molestar.")
-            bypassDoNotDisturb()
+    for (i in 0 until jsonArray.length()) {
+        val contact = jsonArray.getJSONObject(i)
+        val name = contact.getString("name")
+        if (contactName.contains(name, ignoreCase = true)) {
+            isPardoned = true
+            break
         }
     }
+
+    Log.d("NOTIFY_BRAIN", "6. ¿Es un contacto indultado?: $isPardoned")
+
+    // 4. Si el contacto está indultado, desactivamos el DND temporalmente
+    if (isPardoned) {
+        Log.d("NOTIFY_BRAIN", "¡CONTACTO INDULTADO DETECTADO: $contactName! Aplicando bypass de No Molestar.")
+        bypassDoNotDisturb()
+    }
+}
 
     private fun bypassDoNotDisturb() {
         try {
