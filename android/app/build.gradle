@@ -95,11 +95,11 @@ android {
         }
 
         release {
-            if (project.hasProperty('NOTIFY_RELEASE_STORE_FILE')) {
-                storeFile file(NOTIFY_RELEASE_STORE_FILE)
-                storePassword NOTIFY_RELEASE_STORE_PASSWORD
-                keyAlias NOTIFY_RELEASE_KEY_ALIAS
-                keyPassword NOTIFY_RELEASE_KEY_PASSWORD
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
             } else {
                 // Si no hay firma de producción (como en GitHub Actions), se usa la firma debug
                 storeFile file('debug.keystore')
