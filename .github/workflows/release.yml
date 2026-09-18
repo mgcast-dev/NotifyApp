@@ -1,11 +1,11 @@
-name: Build & Upload Release APK
+name: Build & Upload Release APK & AAB
 
 on:
   push:
     tags:
       - 'v*'
 
-# Permisos requeridos para crear la Release y subir el APK
+# Permisos requeridos para crear la Release y subir los artefactos
 permissions:
   contents: write
 
@@ -33,12 +33,14 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
-      - name: Build Release APK
-        run: cd android && ./gradlew assembleRelease
+      - name: Build Release APK & AAB
+        run: cd android && ./gradlew assembleRelease bundleRelease
 
-      - name: Upload APK to Release Assets
+      - name: Upload Assets to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: android/app/build/outputs/apk/release/app-release.apk
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
