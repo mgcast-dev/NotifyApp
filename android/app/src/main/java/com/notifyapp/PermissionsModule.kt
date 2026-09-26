@@ -1,4 +1,4 @@
-package com.notifyapp
+package com.notifyapp.app
 
 import android.app.NotificationManager // <-- NUEVO IMPORT NECESARIO
 import android.content.Context

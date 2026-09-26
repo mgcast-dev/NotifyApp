@@ -1,4 +1,4 @@
-package com.notifyapp
+package com.notifyapp.app
 
 import android.view.View
 import com.facebook.react.ReactPackage
