@@ -1,4 +1,4 @@
-package com.notifyapp
+package com.notifyapp.app
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
