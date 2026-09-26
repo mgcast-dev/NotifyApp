@@ -14,7 +14,7 @@
 
 # Evitar que ProGuard/R8 ofusque o elimine nuestro código nativo y el puente
 -keep class com.notifyapp.** { *; }
--keepclassmembers class com.notifyapp.** { *; }
+-keepclassmembers class com.notifyapp.app.** { *; }
 
 # Mantener los métodos anotados de React Native intactos
 -keepattributes *Annotation*,Signature,InnerClasses
