@@ -1,81 +1,101 @@
 # 📱 NotifyApp
 
-Una aplicación móvil desarrollada con React Native (CLI) centrada en el rendimiento, utilizando el motor Hermes y módulos nativos personalizados para Android.
+Aplicación Android que filtra las notificaciones de tus contactos de confianza y gestiona el modo No Molestar del dispositivo. Desarrollada con React Native (CLI, sin Expo) y un módulo nativo en Kotlin.
 
-## 🛠️ Stack Tecnológico y Arquitectura
+---
 
-*   **Framework:** React Native (Bare CLI, sin Expo).
-*   **Motor JavaScript:** Hermes (`hermesEnabled = true`) para un arranque ultra rápido y menor consumo de memoria.
-*   **Plataforma principal:** Android.
-*   **Dependencias principales:**
-    *   `react-native-video` (con ExoPlayer configurado para HLS y Dash).
-    *   `@react-native-async-storage/async-storage` para persistencia local.
-    *   `react-native-safe-area-context` para la gestión de interfaces seguras.
+## ✨ Funcionamiento
+
+1. Añades a una lista de contactos "indultados".
+2. Activas el Modo Indulto en la app.
+3. Un servicio de escucha de notificaciones (`NotificationListenerService`) revisa cada notificación entrante. Si el título coincide con un contacto de la lista, desactiva temporalmente No Molestar (5 segundos) y después restaura el estado anterior del sistema.
+4. Puedes elegir el comportamiento:
+   * **Clásico:** sube el volumen de notificaciones al máximo durante ese intervalo.
+   * **Silencioso:** mantiene el volumen a 0 y activa una vibración.
+
+---
+
+## 🛠️ Stack Tecnológico
+
+*   **Framework:** React Native 0.84 (Bare CLI), TypeScript.
+*   **Motor JavaScript:** Hermes.
+*   **Nativo (Android):** Kotlin. `NotificationListenerService` para leer notificaciones y un módulo nativo (`PermissionsModule`) que expone métodos a React Native.
+*   **Persistencia:** `@react-native-async-storage/async-storage` para la interfaz y `SharedPreferences` como puente con el servicio nativo.
+*   **CI/CD:** GitHub Actions compila el APK y el AAB al crear un tag `v*` y los publica en la release.
+
+---
+
+## 🔐 Permisos de Android
+
+| Permiso | Para qué se usa |
+|---|---|
+| Acceso a notificaciones | Leer el título de las notificaciones entrantes para compararlo con tu lista. |
+| Acceso a No Molestar | Activar y restaurar el modo No Molestar del sistema. |
+| Vibración | Patrón de vibración en el modo silencioso. |
+| Internet | Requerido por el framework de React Native. |
+
+Más detalles en la [Política de Privacidad](#-política-de-privacidad--privacy-policy).
+
+---
+
+## ⚠️ Limitaciones conocidas
+
+*   La coincidencia de contactos se hace por texto en el título de la notificación, así que puede haber falsos positivos (por ejemplo, un contacto "Ana" coincide con "Mañana") y las notificaciones de grupos usan el nombre del grupo.
+*   El servicio aún no es un *Foreground Service*. Algunos fabricantes de Android pueden detenerlo en segundo plano.
+*   Solo se ha probado en Android. No hay versión para iOS.
+*   La cobertura de tests automatizados es básica; la mayor parte de la verificación se ha hecho manualmente en dispositivo físico.
 
 ---
 
 ## ⚙️ Requisitos Previos
 
-Asegúrate de tener instalado tu entorno de desarrollo para Android en Windows:
-*   [Node.js](https://nodejs.org/) (LTS recomendado).
-*   [Java Development Kit (JDK)](https://www.oracle.com/java/technologies/downloads/) (Versión 17 o la requerida por tu versión de RN).
-*   [Android Studio](https://developer.android.com/studio) con Android SDK y variables de entorno configuradas (`ANDROID_HOME`).
+*   [Node.js](https://nodejs.org/) 22.11 o superior.
+*   [JDK 17](https://adoptium.net/).
+*   [Android Studio](https://developer.android.com/studio) con el Android SDK y la variable `ANDROID_HOME` configurada.
 
 ---
 
 ## 🚀 Instalación y Desarrollo Local
 
-1. **Clonar el repositorio y entrar al directorio:**
+1. **Clonar el repositorio:**
    ```bash
-   git clone <URL_DEL_REPOSITORIO>
+   git clone https://github.com/mgcast-dev/NotifyApp.git
    cd NotifyApp
    ```
-2. **Se recomienda npm ci para instalaciones limpias basadas en el package-lock.json**
+2. **Instalar dependencias** (recomendado `npm ci` para instalaciones reproducibles):
    ```bash
    npm ci
    ```
-3. **Iniciar metro**
+3. **Iniciar Metro:**
    ```bash
    npx react-native start
    ```
-4. **Ejecutar la app en modo debug**
+4. **Ejecutar en modo debug** (con un dispositivo o emulador conectado):
    ```bash
    npx react-native run-android
    ```
-5. **Ejecutar la app en modo release**
+5. **Ejecutar en modo release:**
    ```bash
    npx react-native run-android --mode=release
    ```
-(Opcional) **Eliminar archivos temporales generados por el build de Release**
-   ```bash
-   Remove-Item -Recurse -Force android/app/build -ErrorAction SilentlyContinue
-   Remove-Item -Recurse -Force android/.gradle -ErrorAction SilentlyContinue
-   Remove-Item -Recurse -Force android/app/.cxx -ErrorAction SilentlyContinue
-   ```
-# 🔒 Política de Privacidad / Privacy Policy
-   Última actualización: Septiembre de 2026
 
-1. **Información General**
+**(Opcional) Limpiar artefactos de compilación en Windows (PowerShell):**
+```powershell
+Remove-Item -Recurse -Force android/app/build -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force android/.gradle -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force android/app/.cxx -ErrorAction SilentlyContinue
+```
 
-   NotifyApp es una aplicación desarrollada con fines educativos e informativos. Esta política de privacidad describe cómo se gestionan los datos y los permisos dentro de la aplicación.
+---
 
-2. **Recopilación y Uso de Datos**
-   *   Sin almacenamiento externo: NotifyApp no recopila, transmite, almacena ni comparte ningún tipo de información personal, identificadores de dispositivo o datos sensibles de los usuarios en servidores externos ni a terceros.
+## 🧪 Tests
 
-   *   Almacenamiento Local: Los ajustes y la configuración de la aplicación se guardan únicamente de forma local en el dispositivo del usuario utilizando almacenamiento interno cifrado (AsyncStorage).
+```bash
+npm test
+```
 
-3. **Permisos de la Aplicación (Android)**
+---
 
-   Para ofrecer su funcionalidad, la aplicación requiere ciertos permisos nativos en el sistema Android:
+## 🔒 Política de Privacidad / Privacy Policy
 
-   *   Notificaciones: Para mostrar alertas y avisos al usuario en el dispositivo.
-
-   *   Acceso a No Molestar (Bypass DND): Utilizado exclusivamente para gestionar la recepción de alertas prioritarias según la configuración definida por el propio usuario.
-
-4. **Terceros y Servicios de Análisis**
-
-   La aplicación no incluye kits de desarrollo de terceros (SDKs) de publicidad, seguimiento comercial ni servicios de análisis predictivo que recopilen datos de navegación o comportamiento del usuario.
-
-5. **Contacto**
-
-   Si tienes alguna duda o consulta sobre esta Política de Privacidad, puedes ponerte en contacto a través de la sección de Issues de este repositorio o mediante el perfil de GitHub del desarrollador.
+Consulta el archivo [PRIVACY.md](PRIVACY.md).
